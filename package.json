@@ -1,0 +1,21 @@
+{
+  "name": "meowdoku",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name meowdoku",
+    "bench": "tsx scripts/bench.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.1"
+  }
+}
