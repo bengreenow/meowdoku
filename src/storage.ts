@@ -1,3 +1,5 @@
+import type { Difficulty } from "./levels";
+
 export type Mark = 0 | 1 | 2;
 
 export interface SavedGame {
@@ -10,7 +12,9 @@ export interface SavedGame {
 }
 
 export interface Progress {
-  unlocked: number;
+  difficulty: Difficulty;
+  unlocked: Record<Difficulty, number>;
+  /** Keyed by `${difficulty}-${level}`. */
   bestTimes: Record<string, number>;
   dailyDone: Record<string, number>;
   autoMark: boolean;
@@ -20,15 +24,35 @@ export interface Progress {
 
 const KEY = "meowdoku:v1";
 
-const defaults = (): Progress => ({ unlocked: 1, bestTimes: {}, dailyDone: {}, autoMark: true, sound: true, saved: null });
+const defaults = (): Progress => ({
+  difficulty: "normal",
+  unlocked: { easy: 1, normal: 1, hard: 1 },
+  bestTimes: {},
+  dailyDone: {},
+  autoMark: true,
+  sound: true,
+  saved: null,
+});
 
 export function loadProgress(): Progress {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? { ...defaults(), ...JSON.parse(raw) } : defaults();
+    return raw ? migrate({ ...defaults(), ...JSON.parse(raw) }) : defaults();
   } catch {
     return defaults();
   }
+}
+
+/** Before difficulties, there was a single track, which is now Normal. */
+function migrate(progress: Progress): Progress {
+  const legacy = progress.unlocked as unknown;
+  if (typeof legacy === "number") {
+    progress.unlocked = { easy: 1, normal: legacy, hard: 1 };
+    progress.bestTimes = Object.fromEntries(
+      Object.entries(progress.bestTimes).map(([k, v]) => [/^\d+$/.test(k) ? `normal-${k}` : k, v]),
+    );
+  }
+  return progress;
 }
 
 export function saveProgress(progress: Progress): void {

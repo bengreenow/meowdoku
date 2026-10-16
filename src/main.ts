@@ -1,7 +1,7 @@
 import "./style.css";
 import { catSvg, crossSvg, fishSvg, pawSvg, peekingCatSvg, peekingPawsSvg } from "./art";
 import type { GeneratedPuzzle } from "./generator";
-import { sizeForLevel } from "./levels";
+import { DIFFICULTIES, sizeForLevel, type Difficulty } from "./levels";
 import { getDaily, getLevel } from "./puzzles";
 import { setSoundEnabled, sfx } from "./sound";
 import { dailyStreak, loadProgress, saveProgress, todayKey, type Mark } from "./storage";
@@ -21,7 +21,7 @@ const icons = {
   restart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/></svg>`,
 };
 
-type Mode = { kind: "level"; level: number } | { kind: "daily"; date: string };
+type Mode = { kind: "level"; difficulty: Difficulty; level: number } | { kind: "daily"; date: string };
 
 interface Game {
   mode: Mode;
@@ -41,7 +41,7 @@ setSoundEnabled(progress.sound);
 let game: Game | null = null;
 let timerHandle = 0;
 
-const modeKey = (mode: Mode) => (mode.kind === "level" ? `level-${mode.level}` : `daily-${mode.date}`);
+const modeKey = (mode: Mode) => (mode.kind === "level" ? `${mode.difficulty}-${mode.level}` : `daily-${mode.date}`);
 const cloneMarks = (marks: Mark[][]) => marks.map((row) => row.slice());
 const shapeOf = (puzzle: GeneratedPuzzle) => puzzle.regions.map((row) => row.join(".")).join("|");
 
@@ -95,7 +95,9 @@ function renderHome() {
   const today = todayKey();
   const streak = dailyStreak(progress.dailyDone);
   const dailyDone = progress.dailyDone[today] !== undefined;
-  const size = sizeForLevel(progress.unlocked);
+  const difficulty = progress.difficulty;
+  const unlocked = progress.unlocked[difficulty];
+  const size = sizeForLevel(difficulty, unlocked);
   app.innerHTML = `
     <div class="home-corner">${soundButton()}</div>
     <section class="home">
@@ -108,8 +110,13 @@ function renderHome() {
         <p class="tagline">Every cat needs its own space.</p>
       </div>
       <div class="menu">
+        <div class="difficulty" role="radiogroup" aria-label="Difficulty">
+          ${DIFFICULTIES.map(
+            (d) => `<button role="radio" aria-checked="${d.id === difficulty}" data-difficulty="${d.id}" tabindex="${d.id === difficulty ? 0 : -1}">${d.label}</button>`,
+          ).join("")}
+        </div>
         <button class="btn primary" data-action="continue">
-          <span>Play level ${progress.unlocked}</span>
+          <span>Play level ${unlocked}</span>
           <span class="badge">${size}×${size}</span>
         </button>
         <button class="btn" data-action="daily">
@@ -118,7 +125,7 @@ function renderHome() {
         </button>
       </div>
       <label class="jump">Replay level
-        <input type="number" min="1" max="${progress.unlocked}" value="${progress.unlocked}" inputmode="numeric" />
+        <input type="number" min="1" max="${unlocked}" value="${unlocked}" inputmode="numeric" />
         <button class="btn" data-action="jump">Go</button>
       </label>
       <details class="how">
@@ -133,12 +140,33 @@ function renderHome() {
     </section>`;
   bindSound();
 
-  app.querySelector('[data-action="continue"]')!.addEventListener("click", () => startGame({ kind: "level", level: progress.unlocked }));
+  const group = app.querySelector<HTMLElement>(".difficulty")!;
+  const choose = (id: Difficulty) => {
+    if (id === progress.difficulty) return;
+    progress.difficulty = id;
+    saveProgress(progress);
+    sfx.cross();
+    renderHome();
+    app.querySelector<HTMLElement>(`[data-difficulty="${id}"]`)?.focus();
+  };
+  group.addEventListener("click", (e) => {
+    const id = (e.target as HTMLElement).closest<HTMLElement>("[data-difficulty]")?.dataset.difficulty as Difficulty | undefined;
+    if (id) choose(id);
+  });
+  group.addEventListener("keydown", (e) => {
+    const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const i = DIFFICULTIES.findIndex((d) => d.id === progress.difficulty);
+    choose(DIFFICULTIES[(i + step + DIFFICULTIES.length) % DIFFICULTIES.length].id);
+  });
+
+  app.querySelector('[data-action="continue"]')!.addEventListener("click", () => startGame({ kind: "level", difficulty, level: unlocked }));
   app.querySelector('[data-action="daily"]')!.addEventListener("click", () => startGame({ kind: "daily", date: today }));
   const input = app.querySelector<HTMLInputElement>(".jump input")!;
   const jump = () => {
-    const level = Math.min(progress.unlocked, Math.max(1, Math.floor(Number(input.value) || 1)));
-    startGame({ kind: "level", level });
+    const level = Math.min(unlocked, Math.max(1, Math.floor(Number(input.value) || 1)));
+    startGame({ kind: "level", difficulty, level });
   };
   app.querySelector('[data-action="jump"]')!.addEventListener("click", (e) => {
     e.preventDefault();
@@ -146,7 +174,7 @@ function renderHome() {
   });
   input.addEventListener("keydown", (e) => e.key === "Enter" && jump());
 
-  getLevel(progress.unlocked);
+  getLevel(difficulty, unlocked);
 }
 
 // Game
@@ -155,7 +183,7 @@ async function startGame(mode: Mode, fresh = false) {
   stopTimer();
   app.innerHTML = `<div class="loading">${catSvg(Math.floor(Math.random() * 11))}</div>`;
   const key = modeKey(mode);
-  const puzzle = mode.kind === "level" ? await getLevel(mode.level) : await getDaily(mode.date);
+  const puzzle = mode.kind === "level" ? await getLevel(mode.difficulty, mode.level) : await getDaily(mode.date);
   const saved = !fresh && progress.saved?.key === key && progress.saved.shape === shapeOf(puzzle) ? progress.saved : null;
   const n = puzzle.size;
   game = {
@@ -171,7 +199,7 @@ async function startGame(mode: Mode, fresh = false) {
   };
   renderGame();
   startTimer();
-  if (mode.kind === "level") getLevel(mode.level + 1);
+  if (mode.kind === "level") getLevel(mode.difficulty, mode.level + 1);
 }
 
 function renderGame() {
@@ -183,7 +211,7 @@ function renderGame() {
       <button class="round-btn small" data-action="home" aria-label="Back to menu"><span class="disc">${icons.back}</span></button>
       <div class="title">
         <h2>${title}</h2>
-        <div class="meta"><span class="pill">${n}×${n}</span><span class="pill time">${formatTime(elapsedNow(g))}</span></div>
+        <div class="meta">${g.mode.kind === "level" ? `<span class="pill">${DIFFICULTIES.find((d) => d.id === (g.mode as { difficulty: Difficulty }).difficulty)!.label}</span>` : ""}<span class="pill">${n}×${n}</span><span class="pill time">${formatTime(elapsedNow(g))}</span></div>
       </div>
       ${soundButton()}
     </header>
@@ -468,10 +496,11 @@ function win() {
   const time = g.elapsed;
   let best: number | undefined;
   if (g.mode.kind === "level") {
-    const key = String(g.mode.level);
+    const { difficulty, level } = g.mode;
+    const key = `${difficulty}-${level}`;
     best = progress.bestTimes[key];
     if (best === undefined || time < best) progress.bestTimes[key] = time;
-    if (g.mode.level >= progress.unlocked) progress.unlocked = g.mode.level + 1;
+    if (level >= progress.unlocked[difficulty]) progress.unlocked[difficulty] = level + 1;
   } else {
     progress.dailyDone[g.mode.date] = Math.min(time, progress.dailyDone[g.mode.date] ?? Infinity);
   }
@@ -482,7 +511,8 @@ function win() {
   rainPaws();
 
   const isLevel = g.mode.kind === "level";
-  const next = isLevel ? (g.mode as { level: number }).level + 1 : 0;
+  const difficulty = g.mode.kind === "level" ? g.mode.difficulty : progress.difficulty;
+  const next = g.mode.kind === "level" ? g.mode.level + 1 : 0;
   setTimeout(() => {
     showDialog("won", `
       ${catSvg(Math.floor(Math.random() * 11))}
@@ -494,11 +524,11 @@ function win() {
         ${best !== undefined ? `<div><strong>${formatTime(Math.min(best, time))}</strong><span>best</span></div>` : ""}
       </div>
       <div class="actions">
-        ${isLevel ? `<button class="btn primary" data-go="next">Level ${next}</button>` : `<button class="btn primary" data-go="levels">Play level ${progress.unlocked}</button>`}
+        ${isLevel ? `<button class="btn primary" data-go="next">Level ${next}</button>` : `<button class="btn primary" data-go="levels">Play level ${progress.unlocked[difficulty]}</button>`}
         <button class="btn" data-go="home">Menu</button>
       </div>`, (go) => {
-      if (go === "next") startGame({ kind: "level", level: next });
-      else if (go === "levels") startGame({ kind: "level", level: progress.unlocked });
+      if (go === "next") startGame({ kind: "level", difficulty, level: next });
+      else if (go === "levels") startGame({ kind: "level", difficulty, level: progress.unlocked[difficulty] });
       else renderHome();
     });
   }, 900);

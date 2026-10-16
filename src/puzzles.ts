@@ -1,4 +1,5 @@
 import type { GeneratedPuzzle } from "./generator";
+import type { Difficulty } from "./levels";
 import type { PuzzleSpec } from "./worker";
 
 type Pending = { resolve: (p: GeneratedPuzzle) => void };
@@ -24,5 +25,6 @@ function request(key: string, body: PuzzleSpec): Promise<GeneratedPuzzle> {
   return promise;
 }
 
-export const getLevel = (level: number) => request(`level-${level}`, { kind: "level", level });
+export const getLevel = (difficulty: Difficulty, level: number) =>
+  request(`${difficulty}-${level}`, { kind: "level", difficulty, level });
 export const getDaily = (date: string) => request(`daily-${date}`, { kind: "daily", date });

@@ -12,12 +12,21 @@ function assertValid(p: Puzzle) {
 }
 
 describe("generator", () => {
-  it.each([1, 2, 5, 12, 30, 60, 100, 250, 1000])("level %i has exactly one valid solution", (level) => {
-    assertValid(levelPuzzle(level));
+  it.each([1, 2, 5, 12, 30, 60, 100, 250, 1000])("normal level %i has exactly one valid solution", (level) => {
+    assertValid(levelPuzzle("normal", level));
+  });
+
+  it.each([1, 10, 50, 300])("easy and hard level %i have exactly one valid solution", (level) => {
+    assertValid(levelPuzzle("easy", level));
+    assertValid(levelPuzzle("hard", level));
   });
 
   it("is deterministic per level", () => {
-    expect(levelPuzzle(42)).toEqual(levelPuzzle(42));
+    expect(levelPuzzle("normal", 42)).toEqual(levelPuzzle("normal", 42));
+  });
+
+  it("gives each difficulty its own boards", () => {
+    expect(levelPuzzle("easy", 30).regions).not.toEqual(levelPuzzle("normal", 30).regions);
   });
 
   it("gives different days different puzzles", () => {

@@ -241,6 +241,34 @@ button {
   font-size: 1.25rem;
 }
 
+.difficulty {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 5px;
+  border-radius: 18px;
+  background: rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 2px 0 rgb(0 0 0 / 0.25);
+}
+
+.difficulty button {
+  border: none;
+  background: none;
+  padding: 10px 0;
+  border-radius: 13px;
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--text-soft);
+  transition: background 0.15s, color 0.15s, transform 0.15s;
+}
+
+.difficulty button[aria-checked="true"] {
+  background: var(--bubblegum);
+  color: #fff;
+  box-shadow: 0 0 0 2px #fff, 0 3px 0 2px var(--ink);
+  transform: translateY(-1px);
+}
+
 .badge {
   font-size: 0.95rem;
   font-weight: 400;
@@ -395,8 +423,7 @@ button {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-  background: rgb(28 16 41 / 0.35);
-  gap: 1px;
+  background: var(--ink);
 }
 
 .cell {
@@ -405,7 +432,7 @@ button {
   min-height: 0;
   padding: 0;
   margin: 0;
-  border: 0 solid var(--ink);
+  border: 1px solid rgb(28 16 41 / 0.5);
   color: rgb(28 16 41 / 0.55);
   background:
     radial-gradient(circle, rgb(28 16 41 / 0.13) 0.9px, transparent 1.3px) 0 0 / 5px 5px,
@@ -414,10 +441,10 @@ button {
   overflow: visible;
 }
 
-.cell.bt { border-top-width: 3px; }
-.cell.bb { border-bottom-width: 3px; }
-.cell.bl { border-left-width: 3px; }
-.cell.br { border-right-width: 3px; }
+.cell.bt { border-top: 3px solid var(--ink); }
+.cell.bb { border-bottom: 3px solid var(--ink); }
+.cell.bl { border-left: 3px solid var(--ink); }
+.cell.br { border-right: 3px solid var(--ink); }
 
 .cell > svg {
   position: absolute;

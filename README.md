@@ -19,7 +19,13 @@ No levels are stored. Each one is generated from its level number, so level 37 i
 4. Solve the board with a solver that only uses deductions a person would make (forced cells, regions confined to rows or columns, and "this cell would leave a region with nowhere to go"). Boards that need guessing are thrown away.
 5. Later levels nudge region borders until the board needs a target number of harder deductions.
 
-Board size grows from 5×5 to 10×10 by level 91. Difficulty keeps rising after that. There is also a daily 8×8 puzzle seeded by date.
+There are three difficulties, each with its own endless run of levels and its own progress.
+
+- Easy stays between 5×5 and 7×7 and only needs simple deductions.
+- Normal grows from 5×5 to 10×10 by level 91, and keeps getting harder after that.
+- Hard starts at 8×8, reaches 10×10 by level 21, and always needs several harder deductions.
+
+There is also a daily 8×8 puzzle seeded by date.
 
 Generation runs in a Web Worker and the next level is built while you play the current one.
 
