@@ -1,8 +1,9 @@
 import "./style.css";
-import { catSvg, crossSvg, fishSvg, pawSvg } from "./art";
+import { catSvg, crossSvg, fishSvg, pawSvg, peekingCatSvg, peekingPawsSvg } from "./art";
 import type { GeneratedPuzzle } from "./generator";
 import { sizeForLevel } from "./levels";
 import { getDaily, getLevel } from "./puzzles";
+import { setSoundEnabled, sfx } from "./sound";
 import { dailyStreak, loadProgress, saveProgress, todayKey, type Mark } from "./storage";
 
 const EMPTY: Mark = 0;
@@ -15,6 +16,8 @@ const icons = {
   undo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg>`,
   hint: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.7V16h8v-1.3A7 7 0 0012 2z"/></svg>`,
   auto: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l6 6M10 4l-6 6M14 14l6 6M20 14l-6 6M14 4h6v6M4 14v6h6"/></svg>`,
+  soundOn: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12"/></svg>`,
+  soundOff: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M17 9l5 6M22 9l-5 6"/></svg>`,
   restart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8"/><path d="M3 3v5h5"/></svg>`,
 };
 
@@ -34,12 +37,37 @@ interface Game {
 
 const app = document.querySelector<HTMLElement>("#app")!;
 const progress = loadProgress();
+setSoundEnabled(progress.sound);
 let game: Game | null = null;
 let timerHandle = 0;
 
 const modeKey = (mode: Mode) => (mode.kind === "level" ? `level-${mode.level}` : `daily-${mode.date}`);
 const cloneMarks = (marks: Mark[][]) => marks.map((row) => row.slice());
 const shapeOf = (puzzle: GeneratedPuzzle) => puzzle.regions.map((row) => row.join(".")).join("|");
+
+const WORDMARK_COLOURS = ["--r1", "--r2", "--r3", "--r4", "--r5", "--r6", "--r9", "--r7"];
+
+function wordmark(): string {
+  return [..."Meowdoku"]
+    .map((ch, i) => `<span style="--c:var(${WORDMARK_COLOURS[i]});--t:${[-6, 4, -3, 5, -4, 3, -5, 6][i]}deg;--y:${[0, -4, 2, -2, 3, -3, 1, -1][i]}px">${ch}</span>`)
+    .join("");
+}
+
+function soundButton(): string {
+  return `<button class="round-btn small" data-action="sound" aria-label="${progress.sound ? "Mute sound" : "Turn sound on"}"><span class="disc">${progress.sound ? icons.soundOn : icons.soundOff}</span></button>`;
+}
+
+function bindSound() {
+  app.querySelector('[data-action="sound"]')?.addEventListener("click", (e) => {
+    progress.sound = !progress.sound;
+    setSoundEnabled(progress.sound);
+    saveProgress(progress);
+    const btn = e.currentTarget as HTMLElement;
+    btn.outerHTML = soundButton();
+    bindSound();
+    sfx.cat();
+  });
+}
 
 function formatTime(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -67,34 +95,43 @@ function renderHome() {
   const today = todayKey();
   const streak = dailyStreak(progress.dailyDone);
   const dailyDone = progress.dailyDone[today] !== undefined;
+  const size = sizeForLevel(progress.unlocked);
   app.innerHTML = `
+    <div class="home-corner">${soundButton()}</div>
     <section class="home">
-      <div class="logo">
-        ${catSvg}
-        <h1>Meowdoku</h1>
-        <p>Every cat needs its own space.</p>
+      <div>
+        <div class="logo">
+          ${peekingCatSvg()}
+          <h1 class="wordmark" aria-label="Meowdoku">${wordmark()}</h1>
+          ${peekingPawsSvg()}
+        </div>
+        <p class="tagline">Every cat needs its own space.</p>
       </div>
       <div class="menu">
         <button class="btn primary" data-action="continue">
           <span>Play level ${progress.unlocked}</span>
-          <small>${sizeForLevel(progress.unlocked)}×${sizeForLevel(progress.unlocked)}</small>
+          <span class="badge">${size}×${size}</span>
         </button>
         <button class="btn" data-action="daily">
           <span>Daily puzzle</span>
-          <small>${dailyDone ? "Done ✓" : streak ? `${streak} day streak` : "New"}</small>
+          <span class="badge">${dailyDone ? "Solved" : streak ? `${streak} day streak` : "New today"}</span>
         </button>
       </div>
       <label class="jump">Replay level
         <input type="number" min="1" max="${progress.unlocked}" value="${progress.unlocked}" inputmode="numeric" />
-        <button class="btn" data-action="jump" style="padding:6px 12px">Go</button>
+        <button class="btn" data-action="jump">Go</button>
       </label>
-      <ul class="rules">
-        <li>Place one cat in every row, column and colour.</li>
-        <li>Cats can't touch, not even diagonally.</li>
-        <li>Tap once for ✕, twice for a cat. Drag to cross out many.</li>
-        <li>A wrong cat costs a fish. Lose all three and start again.</li>
-      </ul>
+      <details class="how">
+        <summary>How to play</summary>
+        <ul>
+          <li>Put one cat in every row, every column and every colour.</li>
+          <li>Cats hate touching, even corner to corner.</li>
+          <li>Tap once to cross a cell out, twice to place a cat. Drag to cross out a run of cells.</li>
+          <li>A wrong cat costs a fish. Lose all three and the level starts again.</li>
+        </ul>
+      </details>
     </section>`;
+  bindSound();
 
   app.querySelector('[data-action="continue"]')!.addEventListener("click", () => startGame({ kind: "level", level: progress.unlocked }));
   app.querySelector('[data-action="daily"]')!.addEventListener("click", () => startGame({ kind: "daily", date: today }));
@@ -116,7 +153,7 @@ function renderHome() {
 
 async function startGame(mode: Mode, fresh = false) {
   stopTimer();
-  app.innerHTML = `<div class="loading">${catSvg}</div>`;
+  app.innerHTML = `<div class="loading">${catSvg(Math.floor(Math.random() * 11))}</div>`;
   const key = modeKey(mode);
   const puzzle = mode.kind === "level" ? await getLevel(mode.level) : await getDaily(mode.date);
   const saved = !fresh && progress.saved?.key === key && progress.saved.shape === shapeOf(puzzle) ? progress.saved : null;
@@ -143,23 +180,26 @@ function renderGame() {
   const title = g.mode.kind === "level" ? `Level ${g.mode.level}` : "Daily puzzle";
   app.innerHTML = `
     <header class="topbar">
-      <button class="icon-btn" data-action="home" aria-label="Back to menu">${icons.back}</button>
+      <button class="round-btn small" data-action="home" aria-label="Back to menu"><span class="disc">${icons.back}</span></button>
       <div class="title">
         <h2>${title}</h2>
-        <div class="sub"><span class="time">${formatTime(elapsedNow(g))}</span></div>
+        <div class="meta"><span class="pill">${n}×${n}</span><span class="pill time">${formatTime(elapsedNow(g))}</span></div>
       </div>
-      <span style="min-width:56px"></span>
+      ${soundButton()}
     </header>
     <div class="lives" aria-label="Lives"></div>
     <div class="board-wrap">
-      <div class="board" role="grid" aria-label="${n} by ${n} puzzle" style="--n:${n}"></div>
+      <div class="sheet">
+        <div class="board" role="grid" aria-label="${n} by ${n} puzzle" style="--n:${n}"></div>
+      </div>
     </div>
     <nav class="toolbar">
-      <button class="icon-btn" data-action="undo">${icons.undo}<span>Undo</span></button>
-      <button class="icon-btn" data-action="hint">${icons.hint}<span>Hint</span></button>
-      <button class="icon-btn ${progress.autoMark ? "on" : ""}" data-action="auto" aria-pressed="${progress.autoMark}">${icons.auto}<span>Auto ✕</span></button>
-      <button class="icon-btn" data-action="restart">${icons.restart}<span>Restart</span></button>
+      <button class="round-btn" data-action="undo"><span class="disc">${icons.undo}</span>Undo</button>
+      <button class="round-btn" data-action="hint"><span class="disc">${icons.hint}</span>Hint</button>
+      <button class="round-btn ${progress.autoMark ? "on" : ""}" data-action="auto" aria-pressed="${progress.autoMark}"><span class="disc">${icons.auto}</span>Auto ✕</button>
+      <button class="round-btn" data-action="restart"><span class="disc">${icons.restart}</span>Restart</button>
     </nav>`;
+  bindSound();
 
   const board = app.querySelector<HTMLElement>(".board")!;
   const { regions } = g.puzzle;
@@ -172,6 +212,8 @@ function renderGame() {
       cell.setAttribute("role", "gridcell");
       cell.tabIndex = r === 0 && c === 0 ? 0 : -1;
       cell.style.setProperty("--fill", `var(--r${regions[r][c] + 1})`);
+      cell.style.setProperty("--tilt", `${((r * 7 + c * 13) % 9) - 4}deg`);
+      cell.style.setProperty("--blink", `${-((r * 3 + c * 5) % 11) * 0.45}s`);
       if (r > 0 && regions[r - 1][c] !== regions[r][c]) cell.classList.add("bt");
       if (r < n - 1 && regions[r + 1][c] !== regions[r][c]) cell.classList.add("bb");
       if (c > 0 && regions[r][c - 1] !== regions[r][c]) cell.classList.add("bl");
@@ -214,14 +256,14 @@ function refresh() {
       const want = mark === CAT ? "cat" : mark === CROSS ? "cross" : "";
       if (el.dataset.mark !== want) {
         el.dataset.mark = want;
-        el.innerHTML = mark === CAT ? catSvg : mark === CROSS ? crossSvg : "";
+        el.innerHTML = mark === CAT ? catSvg(g.puzzle.regions[r][c]) : mark === CROSS ? crossSvg : "";
       }
       if (mark === CAT) el.style.setProperty("--i", String(catIndex++));
       el.setAttribute("aria-label", `Row ${r + 1}, column ${c + 1}, ${mark === CAT ? "cat" : mark === CROSS ? "crossed out" : "empty"}`);
     }
   }
   const lives = app.querySelector(".lives")!;
-  lives.innerHTML = Array.from({ length: MAX_LIVES }, (_, i) => fishSvg.replace('class="fish"', `class="fish ${i < g.lives ? "" : "gone"}"`)).join("");
+  lives.innerHTML = Array.from({ length: MAX_LIVES }, (_, i) => fishSvg.replace('class="fish"', `class="fish${i < g.lives ? "" : " gone"}"`)).join("");
   lives.setAttribute("aria-label", `${g.lives} of ${MAX_LIVES} lives left`);
   app.querySelector<HTMLButtonElement>('[data-action="undo"]')!.disabled = g.history.length === 0 || !!g.finished;
   app.querySelector<HTMLButtonElement>('[data-action="hint"]')!.disabled = !!g.finished;
@@ -307,6 +349,7 @@ function paintCell(r: number, c: number, mark: Mark) {
   const g = game!;
   if (g.marks[r][c] === CAT || g.marks[r][c] === mark) return;
   g.marks[r][c] = mark;
+  (mark === CROSS ? sfx.cross : sfx.clear)();
   refresh();
 }
 
@@ -334,6 +377,8 @@ function setMark(r: number, c: number, mark: Mark) {
     el.classList.remove("wrong");
     void el.offsetWidth;
     el.classList.add("wrong");
+    hiss(el);
+    sfx.wrong();
     navigator.vibrate?.(80);
     if (g.lives <= 0) lose();
     persist();
@@ -345,7 +390,21 @@ function setMark(r: number, c: number, mark: Mark) {
   pushHistory(snapshot);
   refresh();
   if (isSolved()) win();
+  else (mark === CAT ? sfx.cat : mark === CROSS ? sfx.cross : sfx.clear)();
   persist();
+}
+
+function hiss(cell: HTMLElement) {
+  const wrap = app.querySelector<HTMLElement>(".board-wrap")!;
+  const a = cell.getBoundingClientRect();
+  const b = wrap.getBoundingClientRect();
+  const bubble = document.createElement("span");
+  bubble.className = "hiss";
+  bubble.textContent = ["Hiss!", "Nope!", "Mrrr!", "Pfft!"][Math.floor(Math.random() * 4)];
+  bubble.style.left = `${a.left - b.left + a.width / 2}px`;
+  bubble.style.top = `${a.top - b.top + 4}px`;
+  wrap.appendChild(bubble);
+  setTimeout(() => bubble.remove(), 1000);
 }
 
 function crossBlocked(r: number, c: number) {
@@ -381,7 +440,7 @@ function hint() {
   const n = g.puzzle.size;
   const { solution, regions } = g.puzzle;
 
-  // First point out a cat that can't be right, then a missing cat in the most cramped region.
+  // Reveal the missing cat whose region has the fewest open cells, the one a player is most likely stuck on.
   const missing = solution
     .map((c, r) => ({ r, c }))
     .filter(({ r, c }) => g.marks[r][c] !== CAT)
@@ -397,7 +456,9 @@ function hint() {
   if (!target) return;
   g.elapsed += 15000;
   setMark(target.r, target.c, CAT);
-  cellEl(target.r, target.c).classList.add("hint");
+  const el = cellEl(target.r, target.c);
+  el.classList.add("hint");
+  setTimeout(() => el.classList.remove("hint"), 2000);
 }
 
 function win() {
@@ -417,13 +478,14 @@ function win() {
   persist();
   refresh();
   app.querySelector(".board")!.classList.add("won");
+  sfx.win();
   rainPaws();
 
   const isLevel = g.mode.kind === "level";
   const next = isLevel ? (g.mode as { level: number }).level + 1 : 0;
   setTimeout(() => {
-    showDialog(`
-      ${catSvg}
+    showDialog("won", `
+      ${catSvg(Math.floor(Math.random() * 11))}
       <h3>Purrfect!</h3>
       <p>${isLevel ? `Level ${next - 1} solved.` : `Daily streak: ${dailyStreak(progress.dailyDone)} day${dailyStreak(progress.dailyDone) === 1 ? "" : "s"}.`}</p>
       <div class="stats">
@@ -448,8 +510,9 @@ function lose() {
   g.finished = "lost";
   persist();
   refresh();
-  showDialog(`
-    ${catSvg}
+  sfx.lose();
+  showDialog("lost", `
+    ${catSvg(1)}
     <h3>Out of fish</h3>
     <p>The cats are hungry. Have another go.</p>
     <div class="actions">
@@ -458,10 +521,10 @@ function lose() {
     </div>`, (go) => (go === "retry" ? startGame(g.mode, true) : renderHome()));
 }
 
-function showDialog(html: string, onChoose: (go: string) => void) {
+function showDialog(kind: "won" | "lost", html: string, onChoose: (go: string) => void) {
   const overlay = document.createElement("div");
   overlay.className = "overlay";
-  overlay.innerHTML = `<div class="dialog" role="dialog" aria-modal="true">${html}</div>`;
+  overlay.innerHTML = `<div class="dialog ${kind}" role="dialog" aria-modal="true">${html}</div>`;
   document.body.appendChild(overlay);
   overlay.querySelector<HTMLElement>("[data-go]")?.focus();
   overlay.addEventListener("click", (e) => {
@@ -476,7 +539,7 @@ function showDialog(html: string, onChoose: (go: string) => void) {
 function rainPaws() {
   const layer = document.createElement("div");
   layer.className = "paws";
-  const colors = ["var(--accent)", "var(--fish)", "var(--cat-ear)", "var(--r3)", "var(--r5)"];
+  const colors = ["var(--sun)", "var(--fish)", "var(--bubblegum)", "var(--r3)", "var(--r5)", "#fff"];
   for (let i = 0; i < 36; i++) {
     const span = document.createElement("span");
     span.innerHTML = pawSvg;

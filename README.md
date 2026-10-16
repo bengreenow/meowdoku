@@ -38,4 +38,4 @@ npm run bench
 npm run deploy
 ```
 
-This builds and uploads `dist` to the `meowdoku` Cloudflare Pages project.
+This builds the site and deploys it as static assets on Cloudflare Workers (configured in `wrangler.jsonc`).

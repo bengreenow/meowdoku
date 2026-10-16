@@ -14,12 +14,13 @@ export interface Progress {
   bestTimes: Record<string, number>;
   dailyDone: Record<string, number>;
   autoMark: boolean;
+  sound: boolean;
   saved: SavedGame | null;
 }
 
 const KEY = "meowdoku:v1";
 
-const defaults = (): Progress => ({ unlocked: 1, bestTimes: {}, dailyDone: {}, autoMark: true, saved: null });
+const defaults = (): Progress => ({ unlocked: 1, bestTimes: {}, dailyDone: {}, autoMark: true, sound: true, saved: null });
 
 export function loadProgress(): Progress {
   try {
